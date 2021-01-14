@@ -6,7 +6,7 @@ from ScoutSuite.providers.aws.facade.base import AWSFacade
 
 class Regions(AWSCompositeResources, metaclass=abc.ABCMeta):
     def __init__(self, service: str, facade: AWSFacade):
-        super(Regions, self).__init__(facade)
+        super().__init__(facade)
         self.service = service
 
     async def fetch_all(self, regions=None, excluded_regions=None, partition_name='aws', **kwargs):
@@ -32,5 +32,4 @@ class Regions(AWSCompositeResources, metaclass=abc.ABCMeta):
             # counting them would make the report confusing.
             if key == 'vpcs':
                 continue
-                
             self[key + '_count'] = sum([region[key + '_count'] for region in self['regions'].values()])

@@ -5,7 +5,7 @@ from ScoutSuite.providers.aws.utils import get_partition_name
 from ScoutSuite.utils import format_service_name
 
 
-class BaseServicesConfig(object):
+class BaseServicesConfig:
 
     def __init__(self, credentials):
         self.credentials = credentials
@@ -18,13 +18,14 @@ class BaseServicesConfig(object):
         if not services:
             print_debug('No services to scan')
         else:
+            # Remove "credentials" as it isn't a service
+            if 'credentials' in services:
+                services.remove('credentials')
+
             # Print services that are going to get skipped:
             for service in vars(self):
-                if service not in services:
+                if service not in services and service != 'credentials':
                     print_debug('Skipping the {} service'.format(format_service_name(service)))
-
-            # Remove "credentials" as it isn't a service
-            if 'credentials' in services: services.remove('credentials')
 
             # Then, fetch concurrently all services:
             if services:
@@ -52,11 +53,10 @@ class BaseServicesConfig(object):
                     if service != 'iam':
                         method_args['partition_name'] = get_partition_name(self.credentials.session)
 
-                await service_config.fetch_all(**method_args)
-
+                await service_config.fetch_all(**method_args)                
                 if hasattr(service_config, 'finalize'):
                     await service_config.finalize()
             else:
                 print_debug('No method to fetch service %s.' % service)
         except Exception as e:
-            print_exception('Could not fetch {} configuration: {}'.format(service, e))
+            print_exception(f'Could not fetch {service} configuration: {e}')

@@ -147,7 +147,6 @@ var loadAccountId = function () {
 function loadConfig(scriptId, cols, force) {
     if (!force && !scriptId.endsWith('.external_attack_surface')) {
         console.log('Script ID: ' + scriptId);
-        // console.log(loadedConfigArray);
         // Abort if data was previously loaded
         if (loadedConfigArray.indexOf(scriptId) > -1 ) {
             // When the path does not contain .id.
@@ -241,6 +240,9 @@ function processTemplate(id1, containerId, list, replace) {
  */
 function hideAll() {
     $("[id*='.list']").not("[id*='metadata.list']").not("[id='regions.list']").not("[id*='filters.list']").hide()
+    // Add special case excluded by above selector
+    $("[id*='metric_filters.list']").hide()
+
     $("[id*='.details']").hide()
     var element = document.getElementById('scout_display_account_id_on_all_pages')
     if ((element !== undefined) && (element.checked === true)) {
@@ -350,10 +352,10 @@ function showRowWithItems(path) {
  */
 function showFilters(resourcePath) {
     hideFilters()
-    let service = resourcePath.split('.')[1]
     // Show service filters
     $('[id="' + resourcePath + '.id.filters"]').show()
     // show region filters
+    let service = resourcePath.split('.')[1]
     $('[id*="regionfilters.' + service + '.regions"]').show()
 }
 
@@ -390,6 +392,7 @@ function showFindings(path, resourcePath) {
             $('[id="' + items[item] + '"]').addClass('finding-title-' + level)
         } else {
             $('[id="' + items[item] + '"]').addClass('finding-' + level)
+            $('[class="' + items[item] + '"]').addClass('finding-' + level)
         }
         $('[id="' + items[item] + '"]').removeClass('finding-hidden')
         $('[id="' + items[item] + '"]').attr('data-finding-service', findingService)
@@ -862,6 +865,30 @@ function loadMetadata() {
  **********************/
 
 /**
+ * Summary
+ */
+function exportSummary() {
+    var anchor = window.location.hash.substr(1)
+    // Strip the # sign
+    // Get resource path based on browsed-to path
+    var item_indexes = getValueAt("");
+
+    // create array with item values
+        var items = [];
+        var index = 0;
+        items[index] = ["Service", "Description", "Affected resources", "Risk level"]
+        Object.entries(item_indexes.services).forEach((service) =>{
+            Object.entries(service[1].findings).forEach((finding) => {
+                index++;
+                items[index] = [finding[1].service, finding[1].description, finding[1].flagged_items, finding[1].level];
+            })
+        });
+
+    downloadAsCsv('summary.csv', items)
+}
+
+
+/**
  * Show About Scout Suite modal
  */
 function showAbout() {
@@ -874,6 +901,8 @@ function showAbout() {
  */
 function hidePleaseWait () {
     $('#please-wait-modal').fadeOut(500, () => { })
+
+
     $('#please-wait-backdrop').fadeOut(500, () => { })
 }
 
@@ -891,7 +920,28 @@ function showLastRunDetails() {
 function showResourcesDetails() {
     $('#modal-container').html(resources_details_template(runResults));
     $('#modal-container').modal()
+
+    $('#resources_details_download_csv_button').click(function(){
+            var anchor = window.location.hash.substr(1)
+            var item_indexes = getValueAt("")
+            var items = []
+            var index = 0
+            items[index] = ["Service", "Resource", "#"]
+            var serviceName = ""
+            Object.entries(item_indexes.services).forEach((service) => {
+                serviceName = service[0]
+                Object.entries(service[1]).forEach((attr) => {
+                        if ((attr[0].split("_")[1] == "count" || attr[0].split("_")[2] == "count") && attr[1] != 0 && attr[0].split("_")[0] != "regions"){
+                                index++;
+                                items[index] = [serviceName, attr[0].split("_")[0], attr[1].toString()];
+                            }
+                })
+            })
+            downloadAsCsv('findings_summary.csv', items)
+        }
+    )
 }
+
 
 /**
  * Show main dashboard
@@ -954,8 +1004,9 @@ function updateTitle(title) {
  * Updates the Document Object Model
  */
 function showPageFromHash() {
-    if (location.hash) {
-        updateDOM(location.hash)
+    myhash = location.hash.replace(/[^a-z|0-9|.]/gi,'')
+    if (myhash) {
+        updateDOM(myhash)
     } else {
         updateDOM('')
     }
@@ -1160,7 +1211,7 @@ function makeTitle(title) {
         return title.toString()
     }
     title = title.toLowerCase()
-    if (['acm', 'ec2', 'efs', 'iam', 'kms', 'rds', 'sns', 'ses', 'sqs', 'vpc', 'elb', 'elbv2', 'emr'].indexOf(title) !== -1) {
+    if (['acm', 'ec2', 'ecr', 'ecs', 'efs', 'eks', 'iam', 'kms', 'rds', 'sns', 'ses', 'sqs', 'vpc', 'elb', 'elbv2', 'emr'].indexOf(title) !== -1) {
         return title.toUpperCase()
     } else if (title === 'cloudtrail') {
         return 'CloudTrail'
@@ -1168,14 +1219,24 @@ function makeTitle(title) {
         return 'CloudWatch'
     } else if (title === 'cloudformation') {
         return 'CloudFormation'
+    } else if (title === 'cloudfront') {
+        return 'CloudFront'
     } else if (title === 'config') {
         return 'Config'
+    } else if (title === 'cognito') {
+        return 'Cognito'
     } else if (title === 'awslambda') {
         return 'Lambda'
+    } else if (title === 'docdb') {
+        return 'DocumentDB'
     } else if (title === 'dynamodb') {
         return 'DynamoDB'
+    } else if (title === 'guardduty') {
+        return 'GuardDuty'
     } else if (title === 'secretsmanager') {
         return 'Secrets Manager'
+    } else if (title === 'ssm') {
+        return 'Systems Manager'
     } else if (title === 'elasticache') {
         return 'ElastiCache'
     } else if (title === 'redshift') {
@@ -1192,10 +1253,10 @@ function makeTitle(title) {
         return 'Compute Engine'
     } else if (title === 'kubernetesengine') {
         return 'Kubernetes Engine'
-    } else if (title === 'cloudresourcemanager') {
-        return 'Cloud Resource Manager'
-    } else if (['aad', 'arm'].indexOf(title) !== -1) {
-        return title.toUpperCase()
+    } else if (title === 'aad') {
+        return 'Azure Active Directory'
+    } else if (title === 'rbac') {
+        return 'Azure RBAC'
     } else if (title === 'storageaccounts') {
         return 'Storage Accounts'
     } else if (title === 'sqldatabase') {
@@ -1472,4 +1533,3 @@ function downloadAsJson(filename, dict) {
         }
     }
 }
-

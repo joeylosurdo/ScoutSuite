@@ -1,8 +1,10 @@
 import asyncio
 from hashlib import sha1
+import inspect
 
 from ScoutSuite.core.console import print_info
 from ScoutSuite.providers.aws.utils import is_throttled as aws_is_throttled
+from ScoutSuite.providers.gcp.utils import is_throttled as gcp_is_throttled
 
 
 def get_non_provider_id(name):
@@ -25,7 +27,9 @@ async def run_concurrently(function, backoff_seconds=15):
     except Exception as e:
         # Determine whether the exception is due to API throttling
         if is_throttled(e):
-            print_info('Hitting API rate limiting, will retry in {}s'.format(backoff_seconds))
+            source_file = inspect.getsourcefile(function)
+            source_file_line = inspect.getsourcelines(function)[1]
+            print_info(f'Hitting API rate limiting ({"/".join(source_file.split("/")[-2:])} L{source_file_line}), will retry in {backoff_seconds}s')
             await asyncio.sleep(backoff_seconds)
             return await run_concurrently(function, backoff_seconds + 15)
         else:
@@ -112,7 +116,10 @@ def is_throttled(e):
     TODO - this implementation is incomplete
     """
 
-    if hasattr(e, 'message') and 'Google Cloud' in e.message:
+    if hasattr(e, 'message') and \
+            ('Google Cloud' in e.message or
+             '404' in e.message or
+             'projects/' in e.message):
         return False
     else:
-        return aws_is_throttled(e)
+        return aws_is_throttled(e) or gcp_is_throttled(e)

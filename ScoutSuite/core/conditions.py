@@ -37,7 +37,7 @@ def pass_conditions(all_info, current_path, conditions, unknown_as_pass_conditio
             path_to_value, test_name, test_values = condition
             path_to_value = fix_path_string(all_info, current_path, path_to_value)
             target_obj = get_value_at(all_info, current_path, path_to_value)
-            if type(test_values) != list:
+            if type(test_values) != list and type(test_values) != dict:
                 dynamic_value = re_get_value_at.match(test_values)
                 if dynamic_value:
                     test_values = get_value_at(all_info, current_path, dynamic_value.groups()[0], True)
@@ -140,7 +140,7 @@ def pass_condition(b, test, a):
         if not type(a) == list:
             a = [a]
         for c in b:
-            if type(c):
+            if type(c) != dict:
                 c = str(c)
             if c in a:
                 result = True
@@ -164,6 +164,12 @@ def pass_condition(b, test, a):
         for c in b:
             if c in a:
                 result = False
+                break
+    elif test == 'containAtLeastOneMatching':
+        result = False
+        for item in b:
+            if re.match(a, item):
+                result = True
                 break
 
     # Regex tests
@@ -204,6 +210,29 @@ def pass_condition(b, test, a):
     elif test == 'notInSubnets':
         result = (not pass_condition(b, 'inSubnets', a))
 
+    # Port/port ranges tests
+    elif test == 'portsInPortList':
+        result = False
+        if not type(b) == list:
+            b = [b]
+        if not type(a) == list:
+            a = [a]
+        for port_range in b:
+            if '-' in port_range:
+                bottom_limit_port = int(port_range.split('-')[0])
+                upper_limit_port = int(port_range.split('-')[1])
+                for port in a:
+                    if type(port) != int:
+                        port = int(port)
+                    if bottom_limit_port <= port <= upper_limit_port:
+                        result = True
+                        break
+            else: #A single port
+                for port in a:
+                    if port == port_range:
+                        result = True
+                        break
+
     # Policy statement tests
     elif test == 'containAction':
         result = False
@@ -235,6 +264,8 @@ def pass_condition(b, test, a):
         if type(b) != list:
             b = [b]
         for c in b:
+            if type(c) == dict and 'AWS' in c:
+                c = c['AWS']
             if c != a and not re.match(r'arn:aws:iam:.*?:%s:.*' % a, c):
                 result = True
                 break
@@ -246,6 +277,19 @@ def pass_condition(b, test, a):
             if c == a or re.match(r'arn:aws:iam:.*?:%s:.*' % a, c):
                 result = True
                 break
+    elif test == 'isAccountRoot':
+        result = False
+        if type(b) != list:
+            b = [b]
+        for c in b:
+            if type(c) == dict and 'AWS' in c:
+                c = c['AWS']
+                if type(c) != list:
+                    c = [c]
+                for i in c:
+                    if i == a or re.match(r'arn:aws:iam:.*?:%s:root' % a, i):
+                        result = True
+                        break
 
     # Unknown test case
     else:
@@ -256,7 +300,7 @@ def pass_condition(b, test, a):
 
 
 def fix_path_string(all_info, current_path, path_to_value):
-    # Fixes circulare dependency
+    # Fixes circular dependency
     from ScoutSuite.providers.base.configs.browser import get_value_at
     # handle nested _GET_VALUE_AT_...
     while True:
